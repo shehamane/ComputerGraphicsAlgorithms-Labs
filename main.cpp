@@ -1,54 +1,52 @@
-#include <glm/glm.hpp>
 #include <GLFW/glfw3.h>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/transform.hpp>
-#include <iostream>
+
+struct Pointf {
+    float x;
+    float y;
+    float z;
+};
+
+Pointf vertices[] = {{0, 0, 0},
+                     {0.5, 0, 0},
+                     {0.5, 0.5, 0},
+                     {0, 0.5, 0},
+                     {0, 0, 0.5},
+                     {0.5, 0, 0.5},
+                     {0.5, 0.5, 0.5},
+                     {0, 0.5, 0.5}};
+
+float colors[] = {1,0,0, 0,1,0, 0,0,1, 1,0,0, 0,1,0, 0,0,1, 0.5,0.5,0.5, 1,1,1};
+GLuint indexes[] = {0, 1, 2, 3, 0, 1, 5, 4, 0, 3, 7, 4, 4, 5, 6, 7, 6, 5, 1, 2, 6, 7, 3, 2};
 
 int main() {
-    if(!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
-        return -1;
-    }
+    glfwInit();
 
     glfwDefaultWindowHints();
-
-    GLFWwindow* window = glfwCreateWindow(300, 300, "Red Triangle",
+    GLFWwindow *window = glfwCreateWindow(720, 720, "SCENE",
                                           nullptr, nullptr);
-    if(window == nullptr) {
-        std::cerr << "Failed to open GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
-    glfwShowWindow(window);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    // Важно! Не эквивалентно glEnable(GL_DEPTH_TEST | GL_DOUBLEBUFFER)
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_DOUBLEBUFFER);
-    glDepthFunc(GL_LESS);
+    glLoadIdentity();
+    glFrustum(-1, 1, -1, 1, 0, 2);
 
-    glClearColor(0, 0, 0, 1);
+    while (glfwWindowShouldClose(window) == GLFW_FALSE) {
+        glClear(GL_COLOR_BUFFER_BIT);
+        glClearColor(0, 0.5, 0.5, 0);
 
-    glm::mat4 m = glm::perspective(45.0f, 4.0f / 3.0f, 1.0f, 100.0f);
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(glm::value_ptr(m));
+//        glRotatef(1, 1, 1, 0);
 
-    while(glfwWindowShouldClose(window) == GL_FALSE) {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glColor4f(1, 0, 0, 1);
-        glBegin(GL_TRIANGLES);
-        glVertex3f(   0,  0.5, -5);
-        glVertex3f( 0.5, -0.5, -5);
-        glVertex3f(-0.5, -0.5, -5);
-        glEnd();
+        glVertexPointer(3, GL_FLOAT, 0, &vertices);
+        glColorPointer(3, GL_FLOAT, 0, &colors);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_COLOR_ARRAY);
 
-        glfwSwapBuffers(window);
+        glDrawElements(GL_QUADS, 24, GL_UNSIGNED_INT, &indexes);
+
         glfwPollEvents();
+        glfwSwapBuffers(window);
     }
-
-    glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
 }
