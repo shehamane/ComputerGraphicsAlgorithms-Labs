@@ -135,6 +135,15 @@ void fillRowBresencham(float *frame_buffer, Edge edge, int x_baffle, int width, 
     }
 }
 
+void setBaffleColor(float *frame_buffer, int x_baffle, int width, int height) {
+    for (int i = 0; i < height - 1; ++i) {
+        int index = getPixelIndex2(x_baffle, i, width);
+        frame_buffer[index] = 1;
+        frame_buffer[index + 1] = 0;
+        frame_buffer[index + 2] = 0;
+    }
+}
+
 void fillPolygonBaffle(float *frame_buffer, const std::vector<Edge> &edges, int width, int height) {
     int x_min = 9999, x_max = -1;
     for (Edge edge : edges) {
@@ -147,7 +156,7 @@ void fillPolygonBaffle(float *frame_buffer, const std::vector<Edge> &edges, int 
 
     for (Edge edge : edges)
         fillRowBresencham(frame_buffer, edge, x_baffle, width, height);
-
+    setBaffleColor(frame_buffer, x_baffle, width, height);
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -209,6 +218,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
         fillPolygonBaffle(*data->frame_buffer, data->edges, data->width, data->height);
     }
 }
+
 
 int main() {
     int width = 1024, height = 1024;
