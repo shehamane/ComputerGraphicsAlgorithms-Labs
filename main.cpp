@@ -1,11 +1,11 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <cmath>
-#include <iostream>
 
 #define STANDBY 0
 #define VERTEX_CREATING 1
-#define POLYGON_OPERATING 2
+#define WITH_POSTFILTRATION 2
+#define WITHOUT_POSTFILTRATION 3
 
 struct Edge {
     int x1, y1;
@@ -41,17 +41,13 @@ struct Data {
     }
 };
 
-void makePostFiltration(float *frame_buffer, const std::vector<Edge> &edges, int width, int height);
-
-
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    Data *data = static_cast<Data * >(glfwGetWindowUserPointer(window));
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-        if (data->state == VERTEX_CREATING)
-            data->state = POLYGON_OPERATING;
-        else if (data->state == POLYGON_OPERATING)
-            makePostFiltration(*data->frame_buffer, data->edges, data->width, data->height);
+void clearFrame(float *frame_buffer, int width, int height) {
+    for (int i = 0; i < width * height * 3; ++i)
+        frame_buffer[i] = 0;
 }
+
+
+void makePostFiltration(float *frame_buffer, const std::vector<Edge> &edges, int width, int height);
 
 int max(int x, int y) {
     return x > y ? x : y;
@@ -91,8 +87,8 @@ void fillRowBresencham(float *frame_buffer, Edge edge, int x_baffle, int width, 
     int sx = Sign(edge.x2 - edge.x1), sy = Sign(edge.y2 - edge.y1);
     bool is_swap = false;
 
-    std::cout << edge.x1 << " " << edge.y1 << " --> " << edge.x2 << " " << edge.y2 << std::endl;
-    std::cout << "Dx = " << Dx << ", Dy = " << Dy << std::endl;
+//    std::cout << edge.x1 << " " << edge.y1 << " --> " << edge.x2 << " " << edge.y2 << std::endl;
+//    std::cout << "Dx = " << Dx << ", Dy = " << Dy << std::endl;
 
     if (Dy < Dx) {
         int tmp = Dx;
@@ -151,11 +147,27 @@ void fillPolygonBaffle(float *frame_buffer, const std::vector<Edge> &edges, int 
 
     for (Edge edge : edges)
         fillRowBresencham(frame_buffer, edge, x_baffle, width, height);
+
 }
 
-void clearFrame(float *frame_buffer, int width, int height) {
-    for (int i = 0; i < width * height * 3; ++i)
-        frame_buffer[i] = 0;
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    Data *data = static_cast<Data * >(glfwGetWindowUserPointer(window));
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+        if (data->state == VERTEX_CREATING)
+            data->state = WITHOUT_POSTFILTRATION;
+        else if (data->state == WITHOUT_POSTFILTRATION) {
+            data->state = WITH_POSTFILTRATION;
+            makePostFiltration(*data->frame_buffer, data->edges, data->width, data->height);
+        } else if (data->state == WITH_POSTFILTRATION) {
+            data->state = WITHOUT_POSTFILTRATION;
+            clearFrame(*data->frame_buffer, data->width, data->height);
+            fillPolygonBaffle(*data->frame_buffer, data->edges, data->width, data->height);
+        }
+    if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS) {
+        data->state = STANDBY;
+        data->edges.clear();
+        clearFrame(*data->frame_buffer, data->width, data->height);
+    }
 }
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
