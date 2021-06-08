@@ -1,224 +1,336 @@
 #include <GLFW/glfw3.h>
-#include <vector>
-#include <iostream>
+#include <cmath>
+#include <fstream>
 
-float rotationX = 0, rotationY = 0, rotationZ = 0;
-bool isClip = false;
+double turnSpeed = 5;
+double scaleRatio = 1;
+double alpha = 0, betta = 0, gama = 0;
+int n = 50;
+double h = 1, r1 = 0.5, r2 = 0.25;
 
-void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+float light_position1[] = {1, 1, 0, 0};
+GLfloat light_position2[] = {0.0, 1.0, 1.0, 1.0};
+GLfloat diffuse_color1[] = {1, 1, 1};
+GLfloat diffuse_color2[] = {1, 1, 1};
+
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+    if (yoffset > 0)
+        scaleRatio += 0.1;
+    else if (scaleRatio > 0.2)
+        scaleRatio -= 0.1;
+}
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    if (action == GLFW_REPEAT)
         switch (key) {
-            case GLFW_KEY_UP:
-                rotationX += 5;
-                break;
-            case GLFW_KEY_DOWN:
-                rotationX -= 5;
+            case GLFW_KEY_LEFT:
+                gama -= turnSpeed;
                 break;
             case GLFW_KEY_RIGHT:
-                rotationY -= 5;
+                gama += turnSpeed;
                 break;
-            case GLFW_KEY_LEFT:
-                rotationY += 5;
+            case GLFW_KEY_DOWN:
+                alpha += turnSpeed;
                 break;
-            case GLFW_KEY_A:
-                rotationZ += 5;
+            case GLFW_KEY_UP:
+                alpha -= turnSpeed;
                 break;
-            case GLFW_KEY_D:
-                rotationZ -= 5;
+            case GLFW_KEY_DELETE:
+                betta -= turnSpeed;
                 break;
-            case GLFW_KEY_F:
-                isClip = !isClip;
+            case GLFW_KEY_PAGE_DOWN:
+                betta += turnSpeed;
+                break;
+            case GLFW_KEY_Q:
+                if (n > 3)
+                    --n;
+                break;
+            case GLFW_KEY_E:
+                ++n;
                 break;
         }
+    else if (action == GLFW_PRESS) {
+        if (key == GLFW_KEY_Q && n > 3)
+            --n;
+        if (key == GLFW_KEY_E)
+            ++n;
+        if (key == GLFW_KEY_L)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        if (key == GLFW_KEY_F)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 }
 
-class Point {
+class Pointf {
 public:
     float x, y, z;
 
-    Point(float x, float y, float z) : x(x), y(y), z(z) {}
-};
+    Pointf() : x(0), y(0), z(0) {
 
-class Line {
-public:
-    Point v0, v1;
-
-    Line(Point v0, Point v1) : v0(v0), v1(v1) {}
-};
-
-class Vector3f {
-public:
-    float x, y, z;
-
-    Vector3f(float x, float y, float z) : x(x), y(y), z(z) {}
-
-    Vector3f() : x(0), y(0), z(0) {}
-
-    Vector3f(Point a, Point b) : x(b.x - a.x), y(b.y - a.y), z(b.z - a.z) {}
-};
-
-float scalarProduct(Vector3f u, Vector3f v) {
-    return u.x * v.x + u.y * v.y + u.z * v.z;
-}
-
-class Triangle {
-public:
-    Point a, b, c;
-    Vector3f n;
-
-    Triangle(Point a, Point b, Point c, Vector3f n) : a(a), b(b), c(c), n(n) {}
-};
-
-class Plane {
-public:
-    Point a, b, c, d;
-    Vector3f n;
-
-    Plane(Point a, Point b, Point c, Point d) : a(a), b(b), c(c), d(d) {
-        n = Vector3f();
-        n.x = (b.y - a.y) * (c.z - a.z) - (c.y - a.y) * (b.z - a.z);
-        n.y = (b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z);
-        n.z = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
     }
 
-    Plane(Point a, Point b, Point c, Point d, Vector3f n) : a(a), b(b), c(c), d(d), n(n) {}
+    Pointf(float x, float y, float z) : x(x), y(y), z(z) {
+    }
 };
 
-void drawLine(Point a, Point b) {
-    glBegin(GL_LINES);
+GLfloat M[] = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        static_cast<GLfloat>(-0.5 * cos(M_PI / 6)), static_cast<GLfloat>(-0.5 * sin(M_PI / 6)), -1, 0,
+        0, 0, 0, 1
+};
 
-    glColor3f(1, 0, 0);
-    glVertex3f(a.x, a.y, a.z);
-    glVertex3f(b.x, b.y, b.z);
+Pointf twining_points[] = {
+        Pointf(0, 0.5, 0.8),
+        Pointf(0.8, 0.5, 0.8),
+        Pointf(0.8, 0.5, 0),
+        Pointf(0, 0.5, -0.5)
+};
+
+Pointf count_normal(Pointf p1, Pointf p2, Pointf p3) {
+    Pointf a, b, n;
+    GLfloat l;
+
+    a.x = p2.x - p1.x;
+    a.y = p2.y - p1.y;
+    a.z = p2.z - p1.z;
+
+    b.x = p3.x - p1.x;
+    b.y = p3.y - p1.y;
+    b.z = p3.z - p1.z;
+
+    n.x = (a.y * b.z) - (a.z * b.y);
+    n.y = (a.z * b.x) - (a.x * b.z);
+    n.z = (a.x * b.y) - (a.y * b.x);
+
+    // Normalize (divide by root of dot product)
+    l = sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+    n.x /= l;
+    n.y /= l;
+    n.z /= l;
+
+    return n;
+}
+
+void draw_object() {
+    float a = M_PI * 2 / n;
+    float x, z;
+
+
+    glTranslatef(0, -h / 2, 0);
+
+    glBegin(GL_TRIANGLE_FAN);
+    {
+        glNormal3f(0, -1, 0);
+        glColor3f(0.7, 0.7, 0.7);
+        glVertex3f(0, 0, 0);
+        for (int i = -1; i < n; ++i) {
+            x = sin(a * i) * r1;
+            z = cos(a * i) * r1;
+            glVertex3f(x, 0, z);
+        }
+    }
+    glEnd();
+
+    glTranslatef(0, h, 0);
+    glBegin(GL_TRIANGLE_FAN);
+    {
+        glNormal3f(0, 1, 0);
+        glColor3f(0.7, 0.7, 0.7);
+        glVertex3f(0, 0, 0);
+        for (int i = -1; i < n; ++i) {
+            x = sin(a * i) * r2;
+            z = cos(a * i) * r2;
+            glVertex3f(x, 0, z);
+        }
+    }
+    glEnd();
+    glTranslatef(0, -h, 0);
+
+    glBegin(GL_TRIANGLE_STRIP);
+    {
+        float x1, x2, z1, z2, x3, z3;
+        glColor3f(1, 1, 1);
+        for (int i = -1; i < n; ++i) {
+            x1 = sin(a * i) * r1;
+            z1 = cos(a * i) * r1;
+            x2 = sin(a * i) * r2;
+            z2 = cos(a * i) * r2;
+            x3 = sin(a * (i + 1)) * r1;
+            z3 = cos(a * (i + 1)) * r1;
+
+            Pointf normal = count_normal(Pointf(x1, 0, z1), Pointf(x2, h, z2), Pointf(x3, 0, z3));
+            glNormal3f(-normal.x, -normal.y, -normal.z);
+            glTexCoord2d((double)(i+1)/n, 0);
+            glVertex3f(x1, 0, z1);
+            glTexCoord2d((double)(i+1)/n, 1);
+            glVertex3f(x2, h, z2);
+        }
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     glEnd();
 }
 
+double t = 0;
+bool isNeg = false;
+
+Pointf twining() {
+    if (t > 1)
+        isNeg = true;
+    if (t < 0)
+        isNeg = false;
+    Pointf B;
+    B.x = twining_points[0].x * pow((1 - t), 3) + twining_points[1].x * 3 * pow((1 - t), 2) * t +
+          twining_points[2].x * 3 * (1 - t) * t * t + twining_points[3].x * pow(t, 3);
+    B.y = twining_points[0].y * pow((1 - t), 3) + twining_points[1].y * 3 * pow((1 - t), 2) * t +
+          twining_points[2].y * 3 * (1 - t) * t * t + twining_points[3].y * pow(t, 3);
+    B.z = twining_points[0].z * pow((1 - t), 3) + twining_points[1].z * 3 * pow((1 - t), 2) * t +
+          twining_points[2].z * 3 * (1 - t) * t * t + twining_points[3].z * pow(t, 3);
+
+    t += isNeg ? -0.0005 : 0.0005;
+    return B;
+}
+
+GLuint loadBMP_custom(const char *imagepath) {
+    // Данные, прочитанные из заголовка BMP-файла
+    unsigned char header[54]; // Каждый BMP-файл начинается с заголовка, длиной в 54 байта
+    unsigned int dataPos;     // Смещение данных в файле (позиция данных)
+    unsigned int width, height;
+    unsigned int imageSize;   // Размер изображения = Ширина * Высота * 3
+// RGB-данные, полученные из файла
+    unsigned char *data;
+
+    FILE *file = fopen(imagepath, "rb");
+    if (!file) {
+        printf("Изображение не может быть открытоn");
+        return 0;
+    }
+
+    if (fread(header, 1, 54, file) != 54) { // Если мы прочитали меньше 54 байт, значит возникла проблема
+        printf("Некорректный BMP-файлn");
+        return false;
+    }
+
+    if (header[0] != 'B' || header[1] != 'M') {
+        printf("Некорректный BMP-файлn");
+        return 0;
+    }
+
+    // Читаем необходимые данные
+    dataPos = *(int *) &(header[0x0A]); // Смещение данных изображения в файле
+    imageSize = *(int *) &(header[0x22]); // Размер изображения в байтах
+    width = *(int *) &(header[0x12]); // Ширина
+    height = *(int *) &(header[0x16]); // Высота
+    // Некоторые BMP-файлы имеют нулевые поля imageSize и dataPos, поэтому исправим их
+    if (imageSize == 0) imageSize = width * height * 3; // Ширину * Высоту * 3, где 3 - 3 компоненты цвета (RGB)
+    if (dataPos == 0) dataPos = 54; // В таком случае, данные будут следовать сразу за заголовком
+    // Создаем буфер
+    data = new unsigned char[imageSize];
+
+// Считываем данные из файла в буфер
+    fread(data, 1, imageSize, file);
+
+// Закрываем файл, так как больше он нам не нужен
+    fclose(file);
+
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return texture;
+}
+
 int main() {
-    int width = 1024, height = 1024;
-//    std::vector<Plane> planes;
-
-//    planes.push_back(
-//            Plane(Point(-0.5, -0.5, -0.5), Point(-0.5, -0.5, 0.5), Point(-0.5, 0.5, 0.5), Point(-0.5, 0.5, -0.5),
-//                  Vector3f(-1, 0, 0)));
-//    planes.push_back(Plane(Point(0.5, -0.5, -0.5), Point(0.5, -0.5, 0.5), Point(0.5, 0.5, 0.5), Point(0.5, 0.5, -0.5),
-//                           Vector3f(1, 0, 0)));
-//    planes.push_back(
-//            Plane(Point(-0.5, -0.5, -0.5), Point(-0.5, -0.5, 0.5), Point(0.5, -0.5, 0.5), Point(0.5, -0.5, -0.5),
-//                  Vector3f(0, -1, 0)));
-//    planes.push_back(Plane(Point(-0.5, 0.5, -0.5), Point(-0.5, 0.5, 0.5), Point(0.5, 0.5, 0.5), Point(0.5, 0.5, -0.5),
-//                           Vector3f(0, 1, 0)));
-//    planes.push_back(
-//            Plane(Point(-0.5, -0.5, -0.5), Point(-0.5, 0.5, -0.5), Point(0.5, 0.5, -0.5), Point(0.5, -0.5, -0.5),
-//                  Vector3f(0, 0, -1)));
-//    planes.push_back(Plane(Point(-0.5, -0.5, 0.5), Point(-0.5, 0.5, 0.5), Point(0.5, 0.5, 0.5), Point(0.5, -0.5, 0.5),
-//                           Vector3f(0, 0, 1)));
-
-
-    std::vector<Triangle> triangles;
-    triangles.push_back(Triangle(Point(0.7, 0, 0), Point(0, 0.7, 0), Point(0, 0, 0), Vector3f(0, 0, -1)));
-    triangles.push_back(Triangle(Point(0.7, 0, 0), Point(0, 0, 0.7), Point(0, 0, 0), Vector3f(0, -1, 0)));
-    triangles.push_back(Triangle(Point(0, 0.7, 0), Point(0, 0, 0.7), Point(0, 0, 0), Vector3f(-1, 0, 0)));
-    triangles.push_back(Triangle(Point(0.7, 0, 0), Point(0, 0, 0.7), Point(0, 0.7, 0), Vector3f(1, 1, 1)));
-
-
-    Line line(Point(0.2, -0.1, 1), Point(0.2, -0.1, -1));
-
     glfwInit();
-    glfwDefaultWindowHints();
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    GLFWwindow *window = glfwCreateWindow(width, height, "SCENE",
+    glfwDefaultWindowHints();
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
+    GLFWwindow *window = glfwCreateWindow(720, 720, "SCENE",
                                           nullptr, nullptr);
-    glfwSetKeyCallback(window, keyCallback);
     glfwMakeContextCurrent(window);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glfwSetScrollCallback(window, scroll_callback);
+    glfwSetKeyCallback(window, key_callback);
+
+    GLuint Texture = loadBMP_custom("/home/kurilab/projects/acg_labs/texture.bmp");
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_COLOR_MATERIAL);
+    glEnable(GL_NORMALIZE);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glEnable(GL_LIGHT1);
+    glEnable(GL_TEXTURE_2D);
+
+    glBindTexture(GL_TEXTURE_2D, Texture);
+
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position1);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse_color1);
+    glLightfv(GL_LIGHT1, GL_POSITION, light_position2);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, diffuse_color2);
+
     glLoadIdentity();
+    glOrtho(-1, 1, -1, 1, -1, 1);
+    glTranslatef(-0.25, -0.25, 0);
 
     while (glfwWindowShouldClose(window) == GLFW_FALSE) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(0, 0, 0, 0);
+
+
+        glMatrixMode(GL_PROJECTION);              //проекция
+        glLoadIdentity();
+        glLoadMatrixf(M);
+
+        glMatrixMode(GL_MODELVIEW);               //рисование объекта
+        glLoadIdentity();
         glPushMatrix();
-
-        glRotatef(rotationX, 1, 0, 0);
-        glRotatef(rotationY, 0, 1, 0);
-        glRotatef(rotationZ, 0, 0, 1);
-
-        glBegin(GL_TRIANGLES);
-        glColor3f(1, 1, 1);
-        for (Triangle triangle : triangles) {
-            glVertex3f(triangle.a.x, triangle.a.y, triangle.a.z);
-            glVertex3f(triangle.b.x, triangle.b.y, triangle.b.z);
-            glVertex3f(triangle.c.x, triangle.c.y, triangle.c.z);
-        }
-        glEnd();
-        if (!isClip) {
-            glBegin(GL_LINES);
-
-            glColor3f(1, 0, 0);
-            glVertex3f(line.v0.x, line.v0.y, line.v0.z);
-            glVertex3f(line.v1.x, line.v1.y, line.v1.z);
-
-            glEnd();
-        } else {
-            Vector3f d = Vector3f(line.v0, line.v1);
-            float t0 = 0, t1 = 1;
-            for (Triangle triangle : triangles) {
-                Vector3f w = Vector3f(triangle.a, line.v0);
-
-                float P = scalarProduct(triangle.n, d);
-                float Q = scalarProduct(triangle.n, w);
-
-//                std::cout << "(" << d.x << ", " << d.y << ", " << d.z << ") " << std::endl;
-//                std::cout << "(" << w.x << ", " << w.y << ", " << w.z << ") " << std::endl;
-//                std::cout << P << " " << Q << std::endl;
-
-                if (P == 0 && Q > 0) {
-                    drawLine(line.v0, line.v1);
-                    break;
-                }
-                if (P != 0) {
-                    float t = -Q / P;
-                    if (t < 0 || t > 1)
-                        continue;
-                    else if (P > 0) {
-                        if (t <= t0)
-                            continue;
-                        else if (t < t1)
-                            t1 = t;
-                    } else if (P < 0) {
-                        if (t >= t1)
-                            continue;
-                        else if (t > t0)
-                            t0 = t;
-                    }
-                }
-            }
-//            std::cout << t0 << " " << t1 << std::endl;
-
-            float x1 = line.v0.x + (line.v1.x - line.v0.x) * t0;
-            float y1 = line.v0.y + (line.v1.y - line.v0.y) * t0;
-            float z1 = line.v0.z + (line.v1.z - line.v0.z) * t0;
-
-            float x2 = line.v0.x + (line.v1.x - line.v0.x) * t1;
-            float y2 = line.v0.y + (line.v1.y - line.v0.y) * t1;
-            float z2 = line.v0.z + (line.v1.z - line.v0.z) * t1;
-
-//            std::cout << "(" << x1 << ", " << y1 << ", " << z1 << ")" << std::endl;
-//            std::cout << "(" << x2 << ", " << y2 << ", " << z2 << ")" << std::endl;
-
-            drawLine(line.v0, Point(x1, y1, z1));
-            drawLine(line.v1, Point(x2, y2, z2));
-
-        }
-
+        glScaled(scaleRatio, scaleRatio, scaleRatio);
+        glRotated(alpha, 1, 0, 0);
+        glRotated(betta, 0, 1, 0);
+        glRotated(gama, 0, 0, 1);
+        draw_object();
         glPopMatrix();
 
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
+        glBegin(GL_LINES);                       //указатели на источники
+        glColor3f(1, 0, 0);
+        glVertex3f(light_position1[0], light_position1[1], light_position1[2]);
+        glVertex3f(0, 0, 0);
+        glEnd();
+//        glBegin(GL_LINES);
+//        glColor3f(0, 1, 0);
+//        glVertex3f(light_position2[0], light_position2[1], light_position2[2]);
+//        glVertex3f(0, 0, 0);
+//        glEnd();
 
+        glPushMatrix();
+        glLoadIdentity();
+        Pointf B = twining();
+        glTranslatef(B.x, B.y, B.z);
+        float new_pos[] = {B.x, B.y, B.z, 0};
+        glLightfv(GL_LIGHT1, GL_POSITION, new_pos);
+        glScalef(0.2, 0.2, 0.2);
+        glColor3f(0.4, 0.5, 0.4);
+        glBegin(GL_TRIANGLES);
+        glVertex3f(0, 0, 0);
+        glVertex3f(0, 0, 1);
+        glVertex3f(1, 0, 1);
+        glEnd();
+        glPopMatrix();
+
+        glfwPollEvents();
+        glfwSwapBuffers(window);
+    }
 
     glfwDestroyWindow(window);
     glfwTerminate();
