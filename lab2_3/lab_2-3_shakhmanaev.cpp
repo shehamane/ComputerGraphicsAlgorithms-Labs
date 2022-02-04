@@ -1,11 +1,47 @@
 #include <GLFW/glfw3.h>
 #include <cmath>
+#include <vector>
 
 double turnSpeed = 5;
 double scaleRatio = 1;
 double alpha = 0, betta = 0, gama = 0;
-int n = 50;
+int n = 5;
 double h = 1, r1 = 0.5, r2 = 0.25;
+
+struct Point {
+    float x, z;
+
+    Point(float x, float z) {
+        this->x= x;
+        this->z = z;
+    }
+
+    Point(){
+        x = z = 0;
+    }
+};
+
+std::vector<Point> o1(100), o2(100);
+
+void calc_points(){
+    float a = M_PI * 2 / n;
+
+    float x, z;
+
+    o1[0] = Point(0, 0);
+    for (int i = 1; i < n+1; ++i) {
+        x = sin(a * i) * r1;
+        z = cos(a * i) * r1;
+        o1[i] = Point(x, z);
+    }
+
+    o2[0] = Point(0, 0);
+    for (int i = 1; i < n+1; ++i) {
+        x = sin(a * i) * r2;
+        z = cos(a * i) * r2;
+        o2[i] = Point(x, z);
+    }
+}
 
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
     if (yoffset > 0)
@@ -44,16 +80,21 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
                 break;
         }
     else if (action == GLFW_PRESS) {
-        if (key == GLFW_KEY_Q && n > 3)
+        if (key == GLFW_KEY_Q && n > 3) {
             --n;
-        if (key == GLFW_KEY_E)
+            calc_points();
+        }
+        if (key == GLFW_KEY_E && n < 100) {
             ++n;
+            calc_points();
+        }
         if (key == GLFW_KEY_L)
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         if (key == GLFW_KEY_F)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 }
+
 
 struct Pointf {
     float x;
@@ -82,7 +123,6 @@ GLuint indexes[] = {0, 1, 2, 3, 0, 4, 7, 3, 0, 1, 5, 4, 6, 2, 1, 5, 6, 7, 4, 5, 
 };
 
 void draw_object() {
-    float a = M_PI * 2 / n;
     float x, z;
 
     glPushMatrix();
@@ -90,49 +130,42 @@ void draw_object() {
     glTranslatef(0, -h / 2, 0);
 
     glBegin(GL_TRIANGLE_FAN);
+    glColor3f(0.2, 0, 0.7);
     {
-        glColor3f(0.2, 0, 0.8);
-        glVertex3f(0, 0, 0);
-        for (int i = -1; i < n; ++i) {
-            x = sin(a * i) * r1;
-            z = cos(a * i) * r1;
-            glVertex3f(x, 0, z);
-        }
+        for (int i = 0; i<n+1; ++i)
+            glVertex3f(o1[i].x, 0, o1[i].z);
+        glVertex3f(o1[1].x, 0, o1[1].z);
     }
     glEnd();
 
     glTranslatef(0, h, 0);
     glBegin(GL_TRIANGLE_FAN);
+    glColor3f(0.2, 0, 0.7);
     {
-        glColor3f(0.2, 0, 0.8);
-        glVertex3f(0, 0, 0);
-        for (int i = -1; i < n; ++i) {
-            x = sin(a * i) * r2;
-            z = cos(a * i) * r2;
-            glVertex3f(x, 0, z);
-        }
+        for (int i = 0; i<n+1; ++i)
+            glVertex3f(o2[i].x, 0, o2[i].z);
+        glVertex3f(o2[1].x, 0, o2[1].z);
     }
     glEnd();
     glTranslatef(0, -h, 0);
 
     glBegin(GL_TRIANGLE_STRIP);
     {
-        float x1, x2, z1, z2;
         glColor3f(0, 0.3, 0.5);
-        for (int i = -1; i < n; ++i) {
-            x1 = sin(a * i) * r1;
-            z1 = cos(a * i) * r1;
-            x2 = sin(a * i) * r2;
-            z2 = cos(a * i) * r2;
-            glVertex3f(x1, 0, z1);
-            glVertex3f(x2, h, z2);
+        for (int i = 1; i < n+1; ++i) {
+            glVertex3f(o1[i].x, 0, o1[i].z);
+            glVertex3f(o2[i].x, h, o2[i].z);
         }
+        glVertex3f(o1[1].x, 0, o1[1].z);
+        glVertex3f(o2[1].x, h, o2[1].z);
     }
     glEnd();
     glPopMatrix();
 }
 
 int main() {
+    calc_points();
+
     glfwInit();
 
     glfwDefaultWindowHints();

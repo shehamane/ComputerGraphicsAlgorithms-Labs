@@ -7,6 +7,19 @@ double scaleRatio = 1;
 double alpha = 0, betta = 0, gama = 0;
 int n = 50;
 double h = 1, r1 = 0.5, r2 = 0.25;
+double t = 0;
+bool isNeg = false;
+bool is_texture = true;
+bool is_state;
+
+class State {
+public:
+    double twining_t;
+    int alpha, betta, gama;
+    bool is_texture, is_neg;
+};
+
+State state;
 
 float light_position1[] = {1, 1, 0, 0};
 GLfloat light_position2[] = {0.0, 1.0, 1.0, 1.0};
@@ -58,6 +71,25 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         if (key == GLFW_KEY_F)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        if (key == GLFW_KEY_T)
+            is_texture = !is_texture;
+        if (key == GLFW_KEY_F5){
+            state.is_texture = is_texture;
+            state.is_neg = isNeg;
+            state.alpha = alpha;
+            state.betta = betta;
+            state.gama = gama;
+            state.twining_t = t;
+            is_state = true;
+        }
+        if (key == GLFW_KEY_F6 && is_state){
+            is_texture = state.is_texture;
+            isNeg = state.is_neg;
+            alpha = state.alpha;
+            betta = state.betta;
+            gama = state.gama;
+            t = state.twining_t;
+        }
     }
 }
 
@@ -161,9 +193,9 @@ void draw_object() {
 
             Pointf normal = count_normal(Pointf(x1, 0, z1), Pointf(x2, h, z2), Pointf(x3, 0, z3));
             glNormal3f(-normal.x, -normal.y, -normal.z);
-            glTexCoord2d((double)(i+1)/n, 0);
+            glTexCoord2d((double) (i + 1) / n, 0);
             glVertex3f(x1, 0, z1);
-            glTexCoord2d((double)(i+1)/n, 1);
+            glTexCoord2d((double) (i + 1) / n, 1);
             glVertex3f(x2, h, z2);
         }
     }
@@ -171,9 +203,6 @@ void draw_object() {
 
     glEnd();
 }
-
-double t = 0;
-bool isNeg = false;
 
 Pointf twining() {
     if (t > 1)
@@ -188,7 +217,7 @@ Pointf twining() {
     B.z = twining_points[0].z * pow((1 - t), 3) + twining_points[1].z * 3 * pow((1 - t), 2) * t +
           twining_points[2].z * 3 * (1 - t) * t * t + twining_points[3].z * pow(t, 3);
 
-    t += isNeg ? -0.0005 : 0.0005;
+    t += isNeg ? -0.005 : 0.005;
     return B;
 }
 
@@ -262,7 +291,7 @@ int main() {
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
 
-    GLuint Texture = loadBMP_custom("/home/kurilab/projects/acg_labs/texture.bmp");
+    GLuint Texture = loadBMP_custom("/home/kurigohan933/projects/acg_labs/texture.bmp");
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_COLOR_MATERIAL);
@@ -271,8 +300,6 @@ int main() {
     glEnable(GL_LIGHT0);
     glEnable(GL_LIGHT1);
     glEnable(GL_TEXTURE_2D);
-
-    glBindTexture(GL_TEXTURE_2D, Texture);
 
     glLightfv(GL_LIGHT0, GL_POSITION, light_position1);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse_color1);
@@ -287,6 +314,10 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0, 0, 0, 0);
 
+        if (is_texture)
+            glBindTexture(GL_TEXTURE_2D, Texture);
+        else
+            glBindTexture(GL_TEXTURE_2D, 0);
 
         glMatrixMode(GL_PROJECTION);              //проекция
         glLoadIdentity();
